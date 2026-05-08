@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: factura-ia
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: SESSIONS_DIR
+        value: /tmp/auth_sessions
+      - key: WHATSAPP_SESSION_DIR
+        value: /tmp/auth_info_baileys
+      - key: DB_PATH
+        value: /tmp/facturas.db
+    healthCheckPath: /api/qr

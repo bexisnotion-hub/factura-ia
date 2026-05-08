@@ -1,0 +1,2230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FacturaIA · Panel de Gestión</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <style>
+    /* ── Variables ────────────────────────────────────── */
+    :root {
+      --bg: #F7F6F4;
+      --surface: #FFFFFF;
+      --surface-2: #F4F3F1;
+      --border: #E4E3DF;
+      --border-hover: #D1D0CC;
+      --text: #111111;
+      --text-muted: #6B6A67;
+      --text-subtle: #9B9A96;
+      --accent: #1C1C1E;
+      --accent-fg: #FFFFFF;
+      --radius: 10px;
+      --radius-sm: 6px;
+      --radius-xs: 4px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow: 0 2px 8px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      --pending-bg: #FFFBEB; --pending-text: #92400E; --pending-border: #FDE68A;
+      --approved-bg: #F0FDF4; --approved-text: #166534; --approved-border: #BBF7D0;
+      --rejected-bg: #FEF2F2; --rejected-text: #991B1B; --rejected-border: #FECACA;
+      --wa: #22C55E; --blue: #3B82F6;
+      --header-h: 56px;
+    }
+
+    /* ── Reset ────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 13.5px; -webkit-font-smoothing: antialiased; }
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; }
+    button { cursor: pointer; border: none; background: none; font-family: inherit; }
+    input, select { font-family: inherit; }
+    a { color: inherit; text-decoration: none; }
+
+    /* ── QR Overlay ───────────────────────────────────── */
+    .qr-overlay {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      transition: opacity 0.35s ease;
+    }
+    .qr-overlay.hidden { opacity: 0; pointer-events: none; }
+    .qr-card {
+      background: var(--surface);
+      border-radius: 20px;
+      padding: 44px 40px 40px;
+      width: 360px;
+      text-align: center;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.22);
+    }
+    .qr-brand {
+      font-size: 13px; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-subtle);
+      margin-bottom: 6px;
+    }
+    .qr-title {
+      font-size: 22px; font-weight: 600; color: var(--text);
+      margin-bottom: 8px;
+    }
+    .qr-subtitle {
+      font-size: 13px; color: var(--text-muted); margin-bottom: 28px;
+    }
+    .qr-img-box {
+      width: 220px; height: 220px; margin: 0 auto 28px;
+      border: 2px solid var(--border); border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      background: #fff; overflow: hidden;
+    }
+    .qr-img-box img { width: 100%; height: 100%; object-fit: contain; }
+    .qr-waiting {
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+      color: var(--text-muted); font-size: 13px;
+    }
+    .qr-spinner {
+      width: 28px; height: 28px; border: 2.5px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    .qr-steps {
+      text-align: left; background: var(--surface-2);
+      border-radius: var(--radius-sm); padding: 16px;
+      display: flex; flex-direction: column; gap: 8px;
+      margin-bottom: 16px;
+    }
+    .qr-step {
+      display: flex; gap: 10px; align-items: flex-start;
+      font-size: 12.5px; color: var(--text-muted);
+    }
+    .qr-step-n {
+      width: 18px; height: 18px; background: var(--border);
+      border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-size: 11px; font-weight: 600;
+      color: var(--text); flex-shrink: 0; margin-top: 1px;
+    }
+    .qr-note { font-size: 11.5px; color: var(--text-subtle); }
+
+    /* ── Header ───────────────────────────────────────── */
+    .header {
+      position: sticky; top: 0; z-index: 100; height: var(--header-h);
+      background: rgba(255,255,255,0.95); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px; gap: 16px;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .logo { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
+    .logo-dot { color: var(--wa); }
+    .logo-divider { width: 1px; height: 16px; background: var(--border); }
+    .logo-sub { font-size: 12px; color: var(--text-muted); }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .wa-chip {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 99px; padding: 5px 12px; font-size: 12px;
+      color: var(--text-muted); transition: all 0.3s; cursor: pointer;
+    }
+    .wa-chip.connected { background: #F0FDF4; border-color: #BBF7D0; color: #166534; }
+    .wa-chip.connected:hover { background: #DCFCE7; }
+    .wa-chip.disconnected { background: #FEF2F2; border-color: #FECACA; color: #991B1B; }
+    /* Modal de número WhatsApp */
+    .wa-modal-overlay {
+      position: fixed; inset: 0; z-index: 400;
+      background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .wa-modal-overlay.open { opacity: 1; pointer-events: auto; }
+    .wa-modal {
+      background: var(--surface); border-radius: 20px;
+      padding: 36px 32px; width: 360px; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+    .wa-modal-icon { font-size: 48px; margin-bottom: 12px; }
+    .wa-modal-title { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+    .wa-modal-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.5; }
+    .wa-number-box {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .wa-number-text { font-size: 22px; font-weight: 600; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+    .wa-copy-btn {
+      padding: 6px 12px; border-radius: var(--radius-sm); background: var(--surface);
+      border: 1px solid var(--border); font-size: 12px; color: var(--text-muted);
+      cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    }
+    .wa-copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .wa-open-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; padding: 12px; border-radius: var(--radius-sm);
+      background: #25D366; color: #fff; font-size: 14px; font-weight: 600;
+      transition: opacity 0.15s; margin-bottom: 10px;
+    }
+    .wa-open-btn:hover { opacity: 0.88; }
+    .wa-modal-close {
+      font-size: 12.5px; color: var(--text-subtle); cursor: pointer;
+      background: none; border: none; font-family: inherit;
+    }
+    .wa-modal-close:hover { color: var(--text-muted); }
+    .wa-dot {
+      width: 7px; height: 7px; border-radius: 50%; background: #9B9A96;
+      transition: background 0.3s;
+    }
+    .wa-dot.connected { background: var(--wa); box-shadow: 0 0 0 2px rgba(34,197,94,0.2); }
+    .wa-dot.disconnected { background: #EF4444; }
+    .ws-chip {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 11.5px; color: var(--text-subtle);
+    }
+    .ws-led {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #9B9A96; transition: all 0.3s;
+    }
+    .ws-led.active { background: var(--blue); animation: ledPulse 2s ease-in-out infinite; }
+    .export-group { position: relative; display: flex; }
+    .btn-export {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--accent); color: var(--accent-fg);
+      border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+      padding: 7px 14px; font-size: 12.5px; font-weight: 500;
+      transition: opacity 0.15s; border-right: 1px solid rgba(255,255,255,0.2);
+    }
+    .btn-export:hover { opacity: 0.85; }
+    .btn-export-arrow {
+      display: flex; align-items: center; justify-content: center;
+      background: var(--accent); color: var(--accent-fg);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      padding: 7px 9px; font-size: 11px; cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-export-arrow:hover { opacity: 0.85; }
+    .export-dropdown {
+      position: absolute; top: calc(100% + 6px); right: 0;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); box-shadow: var(--shadow);
+      min-width: 210px; z-index: 200; overflow: hidden; display: none;
+    }
+    .export-dropdown.open { display: block; }
+    .export-option {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; font-size: 13px; color: var(--text);
+      cursor: pointer; transition: background 0.1s; border: none;
+      background: none; font-family: inherit; width: 100%; text-align: left;
+    }
+    .export-option:hover { background: var(--surface-2); }
+    .export-option-icon { font-size: 16px; }
+    .export-option-sub { font-size: 11px; color: var(--text-subtle); margin-top: 1px; }
+    .currency-select {
+      padding: 5px 12px; border: 1px solid var(--border);
+      border-radius: 99px; background: var(--surface-2);
+      font-size: 12px; color: var(--text-muted); outline: none;
+      cursor: pointer; font-family: inherit; appearance: none;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .currency-select:hover { border-color: var(--border-hover); color: var(--text); }
+
+    /* ── Main Layout ──────────────────────────────────── */
+    .main { padding: 24px; max-width: 1400px; }
+
+    /* ── Stats Grid ───────────────────────────────────── */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px 22px;
+      display: flex; flex-direction: column; gap: 6px;
+      transition: box-shadow 0.2s;
+    }
+    .stat-card:hover { box-shadow: var(--shadow); }
+    .stat-label {
+      font-size: 11.5px; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-subtle);
+    }
+    .stat-value {
+      font-size: 26px; font-weight: 600; color: var(--text);
+      letter-spacing: -0.02em; line-height: 1.1;
+    }
+    .stat-value.warning { color: #D97706; }
+    .stat-change {
+      font-size: 11.5px; color: var(--text-muted); margin-top: 2px;
+    }
+    .stat-change.up { color: #16A34A; }
+
+    /* ── Balance mensual ─────────────────────────────── */
+    .balance-section {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 22px 24px;
+      margin-bottom: 20px;
+    }
+    .balance-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .balance-title {
+      font-size: 13px; font-weight: 600; color: var(--text);
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .balance-hint {
+      font-size: 12px; color: var(--text-subtle);
+    }
+    .balance-cards {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;
+      margin-bottom: 18px;
+    }
+    .balance-card {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px 20px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .balance-card-label {
+      font-size: 11px; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--text-subtle);
+    }
+    .balance-card-value {
+      font-size: 28px; font-weight: 600; letter-spacing: -0.02em;
+      color: var(--text); line-height: 1.1; font-variant-numeric: tabular-nums;
+    }
+    .balance-card-sub { font-size: 11.5px; color: var(--text-subtle); }
+    .balance-edit-btn {
+      margin-top: 4px; font-size: 12px; color: var(--text-muted);
+      background: none; border: 1px solid var(--border);
+      border-radius: var(--radius-xs); padding: 4px 10px;
+      cursor: pointer; align-self: flex-start; transition: all 0.15s;
+    }
+    .balance-edit-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .balance-input-row {
+      display: none; align-items: center; gap: 6px; margin-top: 4px;
+    }
+    .balance-input-row.open { display: flex; }
+    .balance-input-row input {
+      flex: 1; padding: 6px 10px; border: 1px solid var(--border);
+      border-radius: var(--radius-xs); font-size: 14px; font-family: inherit;
+      background: var(--surface); outline: none; font-variant-numeric: tabular-nums;
+      transition: border-color 0.15s;
+    }
+    .balance-input-row input:focus { border-color: var(--accent); }
+    .balance-save-btn {
+      padding: 6px 12px; background: var(--accent); color: var(--accent-fg);
+      border: none; border-radius: var(--radius-xs); font-size: 12px;
+      font-family: inherit; cursor: pointer; transition: opacity 0.15s;
+    }
+    .balance-save-btn:hover { opacity: 0.85; }
+    .balance-cancel-btn {
+      padding: 6px 10px; background: none; border: 1px solid var(--border);
+      border-radius: var(--radius-xs); font-size: 12px; color: var(--text-muted);
+      font-family: inherit; cursor: pointer;
+    }
+    .net-positive .balance-card-value { color: #16A34A; }
+    .net-negative .balance-card-value { color: #DC2626; }
+    .net-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 600;
+      align-self: flex-start; margin-top: 2px;
+    }
+    .net-badge.superavit { background: #F0FDF4; color: #16A34A; border: 1px solid #BBF7D0; }
+    .net-badge.deficit { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; }
+    .net-badge.equilibrio { background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; }
+    .balance-bar-wrap {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .balance-bar-label { font-size: 12px; color: var(--text-muted); white-space: nowrap; min-width: 120px; }
+    .balance-bar-track {
+      flex: 1; height: 8px; background: var(--border);
+      border-radius: 99px; overflow: hidden;
+    }
+    .balance-bar-fill {
+      height: 100%; border-radius: 99px; width: 0%;
+      transition: width 0.6s ease, background 0.3s;
+    }
+    .balance-bar-fill.ok { background: #22C55E; }
+    .balance-bar-fill.warn { background: #F59E0B; }
+    .balance-bar-fill.over { background: #EF4444; }
+    .balance-bar-pct { font-size: 12px; font-weight: 600; color: var(--text-muted); min-width: 40px; text-align: right; }
+    .balance-no-currency {
+      text-align: center; padding: 16px; font-size: 13px; color: var(--text-subtle);
+    }
+
+    /* ── Section ──────────────────────────────────────── */
+    .section {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    /* ── Toolbar ──────────────────────────────────────── */
+    .toolbar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .search-wrapper { position: relative; flex: 1; min-width: 200px; }
+    .search-wrapper input {
+      width: 100%; padding: 7px 12px 7px 32px;
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--surface-2); font-size: 13px; color: var(--text);
+      outline: none; transition: border-color 0.15s, background 0.15s;
+    }
+    .search-wrapper input:focus { border-color: var(--accent); background: var(--surface); }
+    .search-icon {
+      position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+      color: var(--text-subtle); font-size: 13px; pointer-events: none;
+    }
+    .tabs { display: flex; gap: 2px; }
+    .tab {
+      padding: 6px 12px; border-radius: var(--radius-sm);
+      font-size: 12.5px; color: var(--text-muted); font-weight: 500;
+      transition: all 0.15s;
+    }
+    .tab:hover { background: var(--surface-2); color: var(--text); }
+    .tab.active { background: var(--accent); color: var(--accent-fg); }
+    .filter-select {
+      padding: 7px 10px; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); background: var(--surface-2);
+      font-size: 12.5px; color: var(--text); outline: none;
+      cursor: pointer; transition: border-color 0.15s;
+    }
+    .filter-select:focus { border-color: var(--accent); }
+    .toolbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .invoice-count { font-size: 12px; color: var(--text-subtle); }
+
+    /* ── Table ────────────────────────────────────────── */
+    .table-wrapper { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      padding: 10px 14px; text-align: left;
+      font-size: 11.5px; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--text-subtle);
+      background: var(--surface-2); border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    thead th.text-right { text-align: right; }
+    tbody tr {
+      border-bottom: 1px solid var(--border); cursor: pointer;
+      transition: background 0.1s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--surface-2); }
+    tbody tr.selected { background: #EFF6FF; }
+    tbody td {
+      padding: 11px 14px; font-size: 13px; color: var(--text);
+    }
+    td.text-right { text-align: right; }
+    td.mono { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    td.amount { font-variant-numeric: tabular-nums; font-weight: 500; text-align: right; }
+    td.amount-muted { font-variant-numeric: tabular-nums; text-align: right; color: var(--text-muted); font-size: 12.5px; }
+    .vendor-name { font-weight: 500; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* ── Badges ───────────────────────────────────────── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 8px; border-radius: 99px; font-size: 11.5px; font-weight: 500;
+      border: 1px solid transparent; white-space: nowrap;
+    }
+    .badge-pending { background: var(--pending-bg); color: var(--pending-text); border-color: var(--pending-border); }
+    .badge-approved { background: var(--approved-bg); color: var(--approved-text); border-color: var(--approved-border); }
+    .badge-rejected { background: var(--rejected-bg); color: var(--rejected-text); border-color: var(--rejected-border); }
+    .badge-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+    /* ── Category Tag ─────────────────────────────────── */
+    .cat-tag {
+      display: inline-block; padding: 2px 7px; border-radius: var(--radius-xs);
+      font-size: 11.5px; background: var(--surface-2); color: var(--text-muted);
+      border: 1px solid var(--border); white-space: nowrap;
+    }
+
+    /* ── Confidence ───────────────────────────────────── */
+    .conf-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11.5px; font-variant-numeric: tabular-nums;
+    }
+    .conf-dot {
+      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+    }
+    .conf-high { background: #22C55E; }
+    .conf-mid { background: #F59E0B; }
+    .conf-low { background: #EF4444; }
+
+    /* ── Row Actions ──────────────────────────────────── */
+    .row-actions { display: flex; gap: 4px; justify-content: flex-end; }
+    .btn-action {
+      width: 26px; height: 26px; border-radius: var(--radius-xs);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; transition: background 0.15s; opacity: 0;
+    }
+    tr:hover .btn-action { opacity: 1; }
+    .btn-approve { color: #16A34A; }
+    .btn-approve:hover { background: var(--approved-bg); }
+    .btn-reject { color: #991B1B; }
+    .btn-reject:hover { background: var(--rejected-bg); }
+    .btn-view { color: var(--text-muted); }
+    .btn-view:hover { background: var(--surface-2); }
+
+    /* ── Empty State ──────────────────────────────────── */
+    .empty-state {
+      padding: 64px 24px; text-align: center;
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+    }
+    .empty-icon { font-size: 36px; opacity: 0.5; }
+    .empty-title { font-size: 15px; font-weight: 500; color: var(--text); }
+    .empty-sub { font-size: 13px; color: var(--text-muted); max-width: 300px; }
+
+    /* ── Analytics Grid ───────────────────────────────── */
+    .analytics-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px;
+    }
+    .analytics-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 22px;
+    }
+    .analytics-title {
+      font-size: 12px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-subtle); margin-bottom: 18px;
+    }
+    .bar-row {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+    }
+    .bar-row:last-child { margin-bottom: 0; }
+    .bar-label { font-size: 12.5px; color: var(--text-muted); width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
+    .bar-track { flex: 1; height: 5px; background: var(--border); border-radius: 99px; overflow: hidden; }
+    .bar-fill { height: 100%; background: var(--accent); border-radius: 99px; transition: width 0.6s ease; }
+    .bar-value { font-size: 12px; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 500; }
+    .vendor-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .vendor-row:last-child { border-bottom: none; }
+    .vendor-rank { font-size: 11px; color: var(--text-subtle); width: 16px; text-align: center; flex-shrink: 0; }
+    .vendor-info { flex: 1; min-width: 0; }
+    .vendor-info-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .vendor-info-count { font-size: 11.5px; color: var(--text-subtle); }
+    .vendor-amount { font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+    /* ── Detail Panel ─────────────────────────────────── */
+    .detail-panel {
+      position: fixed; top: var(--header-h); right: 0;
+      width: 400px; height: calc(100vh - var(--header-h));
+      background: var(--surface); border-left: 1px solid var(--border);
+      transform: translateX(100%); transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+      overflow-y: auto; z-index: 90; display: flex; flex-direction: column;
+    }
+    .detail-panel.open { transform: translateX(0); box-shadow: -8px 0 30px rgba(0,0,0,0.07); }
+    .panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; background: var(--surface); z-index: 1;
+    }
+    .panel-close {
+      width: 28px; height: 28px; border-radius: var(--radius-xs);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: var(--text-muted); transition: background 0.15s;
+    }
+    .panel-close:hover { background: var(--surface-2); color: var(--text); }
+    .panel-invoice-id { font-size: 11.5px; color: var(--text-subtle); font-variant-numeric: tabular-nums; }
+    .panel-body { padding: 20px; flex: 1; }
+    .panel-img {
+      width: 100%; aspect-ratio: 4/3; object-fit: contain;
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); margin-bottom: 20px;
+    }
+    .panel-section-title {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--text-subtle);
+      margin-bottom: 12px; margin-top: 20px;
+    }
+    .panel-section-title:first-child { margin-top: 0; }
+    .field-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+    .field-label { font-size: 11.5px; color: var(--text-muted); }
+    .field-value { font-size: 13.5px; font-weight: 500; color: var(--text); }
+    .field-value.amount { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+    .field-input {
+      width: 100%; padding: 8px 10px; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); font-size: 13px; color: var(--text);
+      background: var(--surface-2); outline: none; transition: border-color 0.15s;
+    }
+    .field-input:focus { border-color: var(--accent); background: var(--surface); }
+    .panel-actions {
+      display: flex; gap: 8px; padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      position: sticky; bottom: 0; background: var(--surface);
+    }
+    .btn-approve-full {
+      flex: 1; padding: 10px; border-radius: var(--radius-sm);
+      background: var(--approved-bg); color: var(--approved-text);
+      border: 1px solid var(--approved-border); font-size: 13px;
+      font-weight: 500; transition: opacity 0.15s;
+    }
+    .btn-approve-full:hover { opacity: 0.8; }
+    .btn-reject-full {
+      flex: 1; padding: 10px; border-radius: var(--radius-sm);
+      background: var(--rejected-bg); color: var(--rejected-text);
+      border: 1px solid var(--rejected-border); font-size: 13px;
+      font-weight: 500; transition: opacity 0.15s;
+    }
+    .btn-reject-full:hover { opacity: 0.8; }
+    .btn-save-full {
+      flex: 1; padding: 10px; border-radius: var(--radius-sm);
+      background: var(--accent); color: var(--accent-fg);
+      font-size: 13px; font-weight: 500; transition: opacity 0.15s;
+    }
+    .btn-save-full:hover { opacity: 0.85; }
+    .ai-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: var(--radius-xs); padding: 5px 10px; font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* ── Toasts ───────────────────────────────────────── */
+    .toast-container {
+      position: fixed; bottom: 20px; right: 20px;
+      z-index: 600; display: flex; flex-direction: column; gap: 8px;
+      pointer-events: none;
+    }
+    .toast {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 12px 16px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.10); font-size: 13px; color: var(--text);
+      transform: translateX(120%); transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+      max-width: 320px; pointer-events: auto;
+    }
+    .toast.in { transform: translateX(0); }
+    .toast-icon { font-size: 15px; flex-shrink: 0; }
+    .toast-success { border-left: 3px solid var(--wa); }
+    .toast-info { border-left: 3px solid var(--blue); }
+    .toast-warning { border-left: 3px solid #F59E0B; }
+
+    /* ── Chat ────────────────────────────────────────── */
+    .chat-toggle {
+      position: fixed; bottom: 24px; left: 24px; z-index: 200;
+      display: flex; align-items: center; gap: 8px;
+      background: var(--accent); color: var(--accent-fg);
+      border-radius: 99px; padding: 11px 20px;
+      font-size: 13px; font-weight: 500;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    .chat-toggle:hover { opacity: 0.88; transform: translateY(-2px); }
+    .chat-panel {
+      position: fixed; bottom: 80px; left: 24px; z-index: 200;
+      width: 340px; height: 500px; max-height: calc(100vh - 110px);
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; box-shadow: 0 12px 40px rgba(0,0,0,0.14);
+      display: flex; flex-direction: column; overflow: hidden;
+      transform: translateY(16px) scale(0.97); opacity: 0; pointer-events: none;
+      transition: all 0.22s cubic-bezier(0.4,0,0.2,1);
+    }
+    .chat-panel.open { transform: translateY(0) scale(1); opacity: 1; pointer-events: auto; }
+    .chat-header {
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border); flex-shrink: 0; padding: 0 10px 0 4px;
+    }
+    .chat-tabs { display: flex; gap: 2px; padding: 8px 4px; flex: 1; }
+    .chat-tab {
+      padding: 5px 12px; border-radius: var(--radius-sm);
+      font-size: 12.5px; font-weight: 500; color: var(--text-muted);
+      transition: all 0.15s; display: flex; align-items: center; gap: 5px;
+    }
+    .chat-tab:hover { background: var(--surface-2); color: var(--text); }
+    .chat-tab.active { background: var(--accent); color: var(--accent-fg); }
+    .wa-badge {
+      min-width: 16px; height: 16px; border-radius: 99px;
+      background: #EF4444; color: #fff; font-size: 10px; font-weight: 600;
+      display: inline-flex; align-items: center; justify-content: center; padding: 0 4px;
+    }
+    .chat-tab-content { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+    .chat-header-close {
+      width: 26px; height: 26px; border-radius: var(--radius-xs);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px; color: var(--text-muted); transition: background 0.15s; flex-shrink: 0;
+    }
+    .chat-header-close:hover { background: var(--surface-2); color: var(--text); }
+    .wa-msg-phone { font-size: 11px; color: var(--text-subtle); margin-bottom: 3px; font-weight: 500; }
+    .wa-msg-pending { opacity: 0.55; font-style: italic; }
+    .chat-messages {
+      flex: 1; overflow-y: auto; padding: 14px 12px;
+      display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth;
+    }
+    .chat-msg { display: flex; }
+    .chat-msg-user { justify-content: flex-end; }
+    .chat-msg-bot { justify-content: flex-start; }
+    .chat-bubble {
+      max-width: 82%; padding: 10px 13px; border-radius: 14px;
+      font-size: 12.5px; line-height: 1.55; word-break: break-word;
+    }
+    .chat-msg-bot .chat-bubble {
+      background: var(--surface-2); color: var(--text);
+      border-bottom-left-radius: 4px; border: 1px solid var(--border);
+    }
+    .chat-msg-user .chat-bubble {
+      background: var(--accent); color: var(--accent-fg);
+      border-bottom-right-radius: 4px;
+    }
+    .chat-file-preview { display: flex; flex-direction: column; gap: 5px; }
+    .chat-file-img { width: 160px; border-radius: 8px; object-fit: cover; max-height: 120px; display: block; }
+    .chat-file-pdf {
+      width: 56px; height: 66px; background: rgba(255,255,255,0.15);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      font-size: 26px;
+    }
+    .chat-file-name { font-size: 11.5px; opacity: 0.75; word-break: break-all; }
+    .chat-file-size { font-size: 11px; opacity: 0.55; }
+    .chat-thinking { display: flex; gap: 5px; align-items: center; padding: 2px 0; }
+    .chat-thinking span {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--text-subtle);
+      animation: chatBounce 1.3s ease-in-out infinite;
+    }
+    .chat-thinking span:nth-child(2) { animation-delay: 0.18s; }
+    .chat-thinking span:nth-child(3) { animation-delay: 0.36s; }
+    .chat-footer {
+      padding: 12px; border-top: 1px solid var(--border); flex-shrink: 0;
+    }
+    .chat-dropzone {
+      border: 1.5px dashed var(--border); border-radius: var(--radius-sm);
+      background: var(--surface-2); cursor: pointer; transition: all 0.15s;
+    }
+    .chat-dropzone:hover, .chat-dropzone.drag-over {
+      border-color: var(--accent); background: #F0F0EE;
+    }
+    .chat-drop-inner {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 15px 12px; font-size: 12.5px; color: var(--text-muted);
+      pointer-events: none;
+    }
+    .chat-drop-icon { font-size: 17px; color: var(--text-subtle); }
+
+    /* ── Animations ───────────────────────────────────── */
+    @keyframes chatBounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.6; }
+      30% { transform: translateY(-5px); opacity: 1; }
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes ledPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @keyframes flashRow {
+      0% { background: #EFF6FF; }
+      100% { background: transparent; }
+    }
+    .flash-new { animation: flashRow 2.5s ease-out forwards; }
+
+    /* ── Multi-sesión ─────────────────────────────── */
+    .sessions-area { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+    .session-chip {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 99px; padding: 5px 11px; font-size: 12px;
+      color: var(--text-muted); transition: all 0.2s; cursor: pointer;
+      white-space: nowrap; font-family: inherit;
+    }
+    .session-chip.connected { background: #F0FDF4; border-color: #BBF7D0; color: #166534; }
+    .session-chip.connected:hover { background: #DCFCE7; }
+    .session-chip.qr { background: #FFFBEB; border-color: #FDE68A; color: #92400E; animation: sessionPulse 2s ease-in-out infinite; }
+    .session-chip.disconnected { background: #FEF2F2; border-color: #FECACA; color: #991B1B; }
+    @keyframes sessionPulse { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
+    .add-session-btn {
+      width: 27px; height: 27px; border-radius: 99px;
+      background: var(--surface-2); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px; font-weight: 300; color: var(--text-muted);
+      line-height: 1; transition: all 0.15s; cursor: pointer; flex-shrink: 0;
+    }
+    .add-session-btn:hover { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+
+    /* Session management modal */
+    .smgmt-overlay {
+      position: fixed; inset: 0; z-index: 450;
+      background: rgba(0,0,0,0.55); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.22s;
+    }
+    .smgmt-overlay.open { opacity: 1; pointer-events: auto; }
+    .smgmt-modal {
+      background: var(--surface); border-radius: 20px;
+      width: 360px; max-height: 85vh;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.22);
+      overflow: hidden; display: flex; flex-direction: column;
+    }
+    .smgmt-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 22px 14px; border-bottom: 1px solid var(--border);
+    }
+    .smgmt-title { font-size: 16px; font-weight: 600; color: var(--text); }
+    .smgmt-close {
+      width: 28px; height: 28px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: var(--text-muted); transition: background 0.15s;
+    }
+    .smgmt-close:hover { background: var(--surface-2); }
+    .smgmt-body { padding: 22px; overflow-y: auto; flex: 1; }
+    .smgmt-input {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); font-size: 14px; font-family: inherit;
+      outline: none; transition: border-color 0.15s; margin-bottom: 12px;
+      background: var(--surface-2);
+    }
+    .smgmt-input:focus { border-color: var(--accent); background: var(--surface); }
+    .smgmt-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; padding: 11px; border-radius: var(--radius-sm);
+      background: var(--accent); color: var(--accent-fg); text-decoration: none;
+      font-size: 14px; font-weight: 500; font-family: inherit;
+      transition: opacity 0.15s; margin-bottom: 8px; border: none; cursor: pointer;
+    }
+    .smgmt-btn:hover { opacity: 0.85; }
+    .smgmt-btn-ghost {
+      width: 100%; padding: 10px; border-radius: var(--radius-sm);
+      background: none; border: 1px solid var(--border);
+      font-size: 13px; color: var(--text-muted); font-family: inherit;
+      transition: all 0.15s; cursor: pointer; margin-bottom: 8px;
+    }
+    .smgmt-btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+    .smgmt-btn-danger {
+      width: 100%; padding: 10px; border-radius: var(--radius-sm);
+      background: #FEF2F2; border: 1px solid #FECACA;
+      color: #991B1B; font-size: 13px; font-family: inherit;
+      transition: opacity 0.15s; cursor: pointer;
+    }
+    .smgmt-btn-danger:hover { opacity: 0.8; }
+    .smgmt-qr-box {
+      width: 190px; height: 190px; margin: 0 auto 16px;
+      border: 2px solid var(--border); border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      background: #fff; overflow: hidden;
+    }
+    .smgmt-qr-box img { width: 100%; height: 100%; object-fit: contain; }
+    .smgmt-status-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 99px;
+      font-size: 12px; font-weight: 500; margin-bottom: 16px;
+    }
+    .smgmt-connected { background: #F0FDF4; color: #166534; border: 1px solid #BBF7D0; }
+    .smgmt-qr { background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; }
+    .smgmt-disconnected { background: #FEF2F2; color: #991B1B; border: 1px solid #FECACA; }
+    .smgmt-phone {
+      font-size: 24px; font-weight: 600; letter-spacing: 0.02em;
+      font-variant-numeric: tabular-nums; margin-bottom: 16px; text-align: center;
+    }
+    .smgmt-sessions-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+
+  <!-- ── QR Modal ──────────────────────────────────── -->
+  <div id="qrModal" class="qr-overlay">
+    <div class="qr-card">
+      <div class="qr-brand">FacturaIA</div>
+      <div class="qr-title">Conecta WhatsApp</div>
+      <div class="qr-subtitle">Escanea el código con tu teléfono para empezar</div>
+      <div class="qr-img-box">
+        <img id="qrImg" src="" alt="QR WhatsApp" style="display:none">
+        <div id="qrWaiting" class="qr-waiting">
+          <div class="qr-spinner"></div>
+          <span>Generando código QR...</span>
+        </div>
+        <div id="qrError" class="qr-waiting" style="display:none">
+          <span style="font-size:32px;line-height:1">⚠️</span>
+          <span>Servidor no responde</span>
+        </div>
+      </div>
+      <div class="qr-steps" id="qrSteps">
+        <div class="qr-step"><span class="qr-step-n">1</span><span>Abre WhatsApp en tu teléfono</span></div>
+        <div class="qr-step"><span class="qr-step-n">2</span><span>Ve a ⋮ → <strong>Dispositivos vinculados</strong></span></div>
+        <div class="qr-step"><span class="qr-step-n">3</span><span>Toca <strong>Vincular un dispositivo</strong> y escanea</span></div>
+      </div>
+      <button id="qrRetryBtn" onclick="retryQRConnection()" style="display:none;width:100%;padding:11px;background:var(--accent);color:var(--accent-fg);border:none;border-radius:10px;font-size:13.5px;font-weight:500;cursor:pointer;font-family:inherit;margin-bottom:8px">Reintentar conexión</button>
+      <div class="qr-note" id="qrNote">El código se actualiza automáticamente cada 20 segundos</div>
+    </div>
+  </div>
+
+  <!-- ── Session Management Modal ──────────────────── -->
+  <div class="smgmt-overlay" id="smgmtOverlay" onclick="if(event.target===this)closeSessionModal()">
+    <div class="smgmt-modal">
+      <div class="smgmt-header">
+        <div class="smgmt-title" id="smgmtTitle">Sesión</div>
+        <button class="smgmt-close" onclick="closeSessionModal()">×</button>
+      </div>
+      <div class="smgmt-body" id="smgmtBody"></div>
+    </div>
+  </div>
+
+  <!-- ── Header ────────────────────────────────────── -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">Factura<span class="logo-dot">IA</span></div>
+      <div class="logo-divider"></div>
+      <div class="logo-sub">Panel de Gastos</div>
+    </div>
+    <div class="header-right">
+      <div class="ws-chip">
+        <div class="ws-led" id="wsLed"></div>
+        <span id="wsLabel">Conectando...</span>
+      </div>
+      <select class="currency-select" id="currencySelect" onchange="setCurrency(this.value)" title="Filtrar por divisa">
+        <option value="">Todas las divisas</option>
+        <option value="EUR">€ EUR</option>
+        <option value="USD">$ USD</option>
+        <option value="DOP">RD$ DOP</option>
+      </select>
+      <div class="sessions-area" id="sessionsArea"></div>
+      <button class="add-session-btn" onclick="openAddSessionModal()" title="Añadir cuenta WhatsApp">+</button>
+      <div class="export-group" id="exportGroup">
+        <button class="btn-export" onclick="exportExcel()">↓ Exportar Excel</button>
+        <button class="btn-export-arrow" onclick="toggleExportMenu(event)" title="Más opciones">▾</button>
+        <div class="export-dropdown" id="exportDropdown">
+          <button class="export-option" onclick="exportExcel(); closeExportMenu()">
+            <span class="export-option-icon">📊</span>
+            <span><div style="font-weight:500">Excel profesional</div><div class="export-option-sub">3 hojas: Facturas · Estado de Resultados · Balance</div></span>
+          </button>
+          <button class="export-option" onclick="exportCSV(); closeExportMenu()">
+            <span class="export-option-icon">📄</span>
+            <span><div style="font-weight:500">CSV plano</div><div class="export-option-sub">Compatible con cualquier programa</div></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Main ──────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- Stats -->
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card"><div class="stat-label">Facturas este mes</div><div class="stat-value" id="sStat0">—</div><div class="stat-change" id="sChange0"></div></div>
+      <div class="stat-card"><div class="stat-label">Importe total</div><div class="stat-value" id="sStat1">—</div><div class="stat-change" id="sChange1"></div></div>
+      <div class="stat-card"><div class="stat-label">IVA acumulado</div><div class="stat-value" id="sStat2">—</div><div class="stat-change" id="sChange2"></div></div>
+      <div class="stat-card"><div class="stat-label">Pendientes de revisión</div><div class="stat-value" id="sStat3">—</div><div class="stat-change" id="sChange3"></div></div>
+      <div class="stat-card"><div class="stat-label">Mes anterior</div><div class="stat-value" id="sStat4">—</div><div class="stat-change" id="sChange4"></div></div>
+    </div>
+
+    <!-- Balance mensual -->
+    <div class="balance-section">
+      <div class="balance-header">
+        <div class="balance-title">Balance mensual · <span id="balanceMonth">—</span></div>
+        <div class="balance-hint" id="balanceHint">Selecciona una divisa en el filtro superior para activar el balance</div>
+      </div>
+      <div id="balanceNoCurrency" class="balance-no-currency" style="display:none">
+        Selecciona una divisa (EUR, USD o DOP) en el filtro superior para ver el balance de ingresos y gastos.
+      </div>
+      <div id="balanceContent">
+        <div class="balance-cards">
+          <!-- Ingresos -->
+          <div class="balance-card">
+            <div class="balance-card-label">Ingresos del mes</div>
+            <div class="balance-card-value" id="balanceIncome">—</div>
+            <div class="balance-input-row" id="incomeInputRow">
+              <input type="number" id="incomeInput" placeholder="0.00" min="0" step="0.01">
+              <button class="balance-save-btn" onclick="saveIncome()">Guardar</button>
+              <button class="balance-cancel-btn" onclick="cancelEditIncome()">✕</button>
+            </div>
+            <button class="balance-edit-btn" id="incomeEditBtn" onclick="startEditIncome()">✏️ Editar ingreso</button>
+          </div>
+          <!-- Gastos -->
+          <div class="balance-card">
+            <div class="balance-card-label">Gastos del mes</div>
+            <div class="balance-card-value" id="balanceExpenses">—</div>
+            <div class="balance-card-sub">calculado automáticamente</div>
+          </div>
+          <!-- Beneficio neto -->
+          <div class="balance-card" id="netCard">
+            <div class="balance-card-label">Beneficio neto</div>
+            <div class="balance-card-value" id="balanceNet">—</div>
+            <div class="net-badge" id="balanceNetBadge" style="display:none"></div>
+          </div>
+        </div>
+        <!-- Barra de progreso -->
+        <div class="balance-bar-wrap">
+          <div class="balance-bar-label" id="balanceBarLabel">Gastos vs Ingresos</div>
+          <div class="balance-bar-track">
+            <div class="balance-bar-fill" id="balanceBarFill"></div>
+          </div>
+          <div class="balance-bar-pct" id="balanceBarPct">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Invoice table -->
+    <div class="section">
+      <div class="toolbar">
+        <div class="search-wrapper">
+          <span class="search-icon">⌕</span>
+          <input type="text" id="searchInput" placeholder="Buscar proveedor, nº factura, categoría..." oninput="applyFilters()">
+        </div>
+        <div class="tabs" id="statusTabs">
+          <button class="tab active" onclick="setStatus('', this)">Todas</button>
+          <button class="tab" onclick="setStatus('pending', this)">Pendiente</button>
+          <button class="tab" onclick="setStatus('approved', this)">Aprobadas</button>
+          <button class="tab" onclick="setStatus('rejected', this)">Rechazadas</button>
+        </div>
+        <select class="filter-select" id="catFilter" onchange="applyFilters()">
+          <option value="">Todas las categorías</option>
+          <optgroup label="— Médico —">
+            <option>Suministros Médicos</option>
+            <option>Medicamentos</option>
+            <option>Equipos Médicos</option>
+            <option>Laboratorio</option>
+            <option>Mantenimiento</option>
+            <option>Higiene y Limpieza</option>
+          </optgroup>
+          <optgroup label="— General —">
+            <option>Suministros</option>
+            <option>Tecnología</option>
+            <option>Servicios Profesionales</option>
+            <option>Material Oficina</option>
+            <option>Transporte</option>
+            <option>Alimentación</option>
+            <option>Marketing</option>
+            <option>Alojamiento</option>
+            <option>Otros</option>
+          </optgroup>
+        </select>
+        <div class="toolbar-right">
+          <span class="invoice-count" id="invoiceCount"></span>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Proveedor</th>
+              <th>Nº Factura</th>
+              <th>Categoría</th>
+              <th class="text-right">Total</th>
+              <th class="text-right">IVA</th>
+              <th>Estado</th>
+              <th>IA</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="invoicesBody"></tbody>
+        </table>
+        <div id="emptyState" class="empty-state" style="display:none">
+          <div class="empty-icon">📭</div>
+          <div class="empty-title">Sin facturas todavía</div>
+          <div class="empty-sub">Envía una foto o PDF de factura por WhatsApp y aparecerá aquí al instante</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analytics -->
+    <div class="analytics-grid">
+      <div class="analytics-card">
+        <div class="analytics-title">Gasto por categoría</div>
+        <div id="categoryChart"></div>
+      </div>
+      <div class="analytics-card">
+        <div class="analytics-title">Top proveedores</div>
+        <div id="vendorList"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ── Detail Panel ───────────────────────────────── -->
+  <aside class="detail-panel" id="detailPanel">
+    <div class="panel-header">
+      <div id="panelInvoiceId" class="panel-invoice-id"></div>
+      <button class="panel-close" onclick="closePanel()" title="Cerrar">×</button>
+    </div>
+    <div class="panel-body" id="panelBody"></div>
+    <div class="panel-actions" id="panelActions" style="display:none"></div>
+  </aside>
+
+  <!-- ── Toasts ─────────────────────────────────────── -->
+  <div id="toasts" class="toast-container"></div>
+
+  <!-- ── Chat Panel ────────────────────────────────── -->
+  <button class="chat-toggle" id="chatToggleBtn" onclick="toggleChat()" title="Chat de facturas">
+    <span>💬</span><span>Chat</span>
+    <span class="wa-badge" id="chatBadge" style="display:none">0</span>
+  </button>
+
+  <div class="chat-panel" id="chatPanel">
+    <div class="chat-header">
+      <div class="chat-tabs">
+        <button class="chat-tab active" id="tabBtnWeb" onclick="switchChatTab('web')">📎 Subir</button>
+        <button class="chat-tab" id="tabBtnWa" onclick="switchChatTab('wa')">
+          💬 WhatsApp <span class="wa-badge" id="waBadge" style="display:none">0</span>
+        </button>
+      </div>
+      <button class="chat-header-close" onclick="toggleChat()">×</button>
+    </div>
+
+    <!-- Tab Web: subida de archivos -->
+    <div class="chat-tab-content" id="tabWeb">
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-msg chat-msg-bot">
+          <div class="chat-bubble">
+            Hola 👋 Sube una foto o PDF de factura y la proceso en segundos con IA.<br>
+            <span style="opacity:0.65;font-size:11.5px">JPG · PNG · PDF · Máx 20 MB</span>
+          </div>
+        </div>
+      </div>
+      <div class="chat-footer">
+        <input type="file" id="chatFileInput" accept=".jpg,.jpeg,.png,.pdf" style="display:none" onchange="handleChatFile(event)">
+        <div class="chat-dropzone" id="chatDropzone"
+             onclick="document.getElementById('chatFileInput').click()"
+             ondragover="chatDragOver(event)"
+             ondragleave="chatDragLeave(event)"
+             ondrop="chatDrop(event)">
+          <div class="chat-drop-inner">
+            <span class="chat-drop-icon">↑</span>
+            <span>Arrastra aquí o <u>pulsa para seleccionar</u></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab WhatsApp: conversación en tiempo real -->
+    <div class="chat-tab-content" id="tabWa" style="display:none">
+      <div class="chat-messages" id="waMessages">
+        <div class="chat-msg chat-msg-bot">
+          <div class="chat-bubble">
+            Aquí verás los mensajes de WhatsApp en tiempo real.<br>
+            <span style="opacity:0.65;font-size:11.5px">Envía una factura al bot desde tu teléfono y aparecerá aquí.</span>
+          </div>
+        </div>
+      </div>
+      <div class="chat-footer">
+        <input type="file" id="waFileInput" accept=".jpg,.jpeg,.png,.pdf" style="display:none" onchange="handleWaFile(event)">
+        <div class="chat-dropzone" id="waDropzone"
+             onclick="document.getElementById('waFileInput').click()"
+             ondragover="chatDragOver(event)"
+             ondragleave="chatDragLeave(event)"
+             ondrop="waDrop(event)">
+          <div class="chat-drop-inner">
+            <span class="chat-drop-icon">↑</span>
+            <span>También puedes subir aquí · <u>seleccionar archivo</u></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ────────────────────────────────────────────────────
+  //  Auth (token Bearer guardado en sessionStorage)
+  // ────────────────────────────────────────────────────
+  function getAuthToken() {
+    let t = sessionStorage.getItem('factura_ia_token') || ''
+    if (!t) {
+      t = (window.prompt('Introduce el token de acceso al panel:') || '').trim()
+      if (t) sessionStorage.setItem('factura_ia_token', t)
+    }
+    return t
+  }
+  function clearAuthToken() {
+    sessionStorage.removeItem('factura_ia_token')
+  }
+  // Wrapper de fetch que inyecta el header Authorization y maneja 401.
+  const _origFetch = window.fetch.bind(window)
+  window.fetch = async function (input, init = {}) {
+    let url = typeof input === 'string' ? input : input.url
+    if (url && url.startsWith('/api')) {
+      const token = getAuthToken()
+      const headers = new Headers(init.headers || (typeof input !== 'string' ? input.headers : undefined))
+      if (token) headers.set('Authorization', 'Bearer ' + token)
+      init = { ...init, headers }
+      const res = await _origFetch(input, init)
+      if (res.status === 401) {
+        clearAuthToken()
+        alert('Token no válido o expirado. Recarga e introduce uno correcto.')
+      }
+      return res
+    }
+    return _origFetch(input, init)
+  }
+
+  // ────────────────────────────────────────────────────
+  //  State
+  // ────────────────────────────────────────────────────
+  const state = {
+    all: [],
+    filtered: [],
+    stats: {},
+    selectedId: null,
+    filterStatus: '',
+    filterCat: '',
+    filterSearch: '',
+    currency: '',
+    botPhone: null,
+    balance: { income: 0, expenses: 0, net: 0 },
+    sessions: [],
+    activeModalSessionId: null,
+  }
+
+  // ────────────────────────────────────────────────────
+  //  Init
+  // ────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', async () => {
+    await loadData()
+    connectWS()
+    startQRPolling()
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel() })
+  })
+
+  async function loadData() {
+    try {
+      const cq = state.currency ? `&currency=${state.currency}` : ''
+      const sq = state.currency ? `?currency=${state.currency}` : ''
+      const now = new Date()
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      const fetches = [
+        fetch(`/api/invoices?limit=200${cq}`),
+        fetch(`/api/stats${sq}`),
+        fetch('/api/status'),
+        fetch('/api/sessions'),
+      ]
+      if (state.currency) fetches.push(fetch(`/api/income?month=${currentMonth}&currency=${state.currency}`))
+
+      const results = await Promise.all(fetches)
+      const invData = await results[0].json()
+      state.all = invData.invoices || []
+      state.stats = await results[1].json()
+      const statusData = await results[2].json()
+      if (statusData.phone) state.botPhone = statusData.phone
+      const sessionsData = await results[3].json()
+      state.sessions = sessionsData.sessions || []
+      renderSessions()
+      if (state.currency && results[4]) {
+        state.balance = await results[4].json()
+      } else {
+        state.balance = { income: 0, expenses: 0, net: 0 }
+      }
+
+      applyFilters()
+      renderStats()
+      renderAnalytics()
+      renderBalance()
+
+      if (statusData.whatsapp === 'connected') {
+        hideQRModal()
+      } else {
+        showQRModal(null)
+      }
+    } catch (e) {
+      console.error('Error cargando datos:', e)
+    }
+  }
+
+  // ────────────────────────────────────────────────────
+  //  Currency helpers
+  // ────────────────────────────────────────────────────
+  const SYMS = { EUR: '€', USD: '$', DOP: 'RD$' }
+  function sym() { return SYMS[state.currency] || '' }
+  function fmtAmt(n) {
+    if (n == null || n === '') return '—'
+    const s = sym()
+    return s ? `${s}${fmt(n)}` : fmt(n)
+  }
+  function invSym(inv) { return SYMS[inv?.currency] || (inv?.currency || '') }
+  function fmtInvAmt(n, inv) {
+    if (n == null || n === '') return '—'
+    return `${invSym(inv)}${fmt(n)}`
+  }
+  function setCurrency(val) {
+    state.currency = val
+    state.selectedId = null
+    document.getElementById('detailPanel').classList.remove('open')
+    loadData()
+  }
+  function fmtMonthLabel(ym) {
+    if (!ym) return 'Mes anterior'
+    try {
+      const [y, m] = ym.split('-')
+      return new Date(+y, +m - 1, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
+    } catch { return ym }
+  }
+
+  // ────────────────────────────────────────────────────
+  //  Balance mensual
+  // ────────────────────────────────────────────────────
+  function renderBalance() {
+    const now = new Date()
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    document.getElementById('balanceMonth').textContent = fmtMonthLabel(currentMonth)
+
+    const content = document.getElementById('balanceContent')
+    const hint = document.getElementById('balanceHint')
+
+    if (!state.currency) {
+      content.style.display = 'none'
+      hint.textContent = 'Selecciona una divisa en el filtro superior para activar el balance'
+      return
+    }
+
+    content.style.display = ''
+    hint.textContent = `Divisa: ${state.currency}`
+
+    const { income, expenses, net } = state.balance
+    const s = SYMS[state.currency] || ''
+
+    document.getElementById('balanceIncome').textContent = `${s}${fmt(income)}`
+    document.getElementById('balanceExpenses').textContent = `${s}${fmt(expenses)}`
+    document.getElementById('balanceNet').textContent = `${s}${fmt(Math.abs(net))}`
+
+    const netCard = document.getElementById('netCard')
+    const badge = document.getElementById('balanceNetBadge')
+    badge.style.display = 'inline-flex'
+    netCard.classList.remove('net-positive', 'net-negative')
+
+    if (net > 0) {
+      netCard.classList.add('net-positive')
+      badge.className = 'net-badge superavit'
+      badge.textContent = '✓ Superávit'
+    } else if (net < 0) {
+      netCard.classList.add('net-negative')
+      badge.className = 'net-badge deficit'
+      badge.textContent = '↓ Déficit'
+    } else {
+      badge.className = 'net-badge equilibrio'
+      badge.textContent = '⚖ Equilibrio'
+    }
+
+    // Barra de progreso
+    const pct = income > 0 ? Math.min((expenses / income) * 100, 200) : (expenses > 0 ? 100 : 0)
+    const fill = document.getElementById('balanceBarFill')
+    const barPct = document.getElementById('balanceBarPct')
+    const barLabel = document.getElementById('balanceBarLabel')
+    fill.style.width = `${Math.min(pct, 100)}%`
+    fill.className = 'balance-bar-fill ' + (pct < 70 ? 'ok' : pct < 100 ? 'warn' : 'over')
+    barPct.textContent = `${Math.round(pct)}%`
+    barLabel.textContent = pct >= 100 ? '⚠️ Gastos superan los ingresos' : `${Math.round(pct)}% del ingreso en gastos`
+  }
+
+  function startEditIncome() {
+    const { income } = state.balance
+    document.getElementById('incomeInput').value = income || ''
+    document.getElementById('incomeInputRow').classList.add('open')
+    document.getElementById('incomeEditBtn').style.display = 'none'
+    document.getElementById('incomeInput').focus()
+  }
+
+  function cancelEditIncome() {
+    document.getElementById('incomeInputRow').classList.remove('open')
+    document.getElementById('incomeEditBtn').style.display = ''
+  }
+
+  async function saveIncome() {
+    const val = parseFloat(document.getElementById('incomeInput').value)
+    if (isNaN(val) || val < 0) return
+    const now = new Date()
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    try {
+      const res = await fetch('/api/income', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ month, currency: state.currency, amount: val }),
+      })
+      const data = await res.json()
+      state.balance = data
+      cancelEditIncome()
+      renderBalance()
+    } catch (e) {
+      console.error('Error guardando ingreso:', e)
+    }
+  }
+
+  // ────────────────────────────────────────────────────
+  //  WebSocket
+  // ────────────────────────────────────────────────────
+  function connectWS() {
+    let ws
+    try {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const token = encodeURIComponent(sessionStorage.getItem('factura_ia_token') || '')
+      ws = new WebSocket(`${proto}//${location.host}/?token=${token}`)
+    } catch { return }
+
+    ws.onopen = () => setWsStatus(true)
+    ws.onclose = () => { setWsStatus(false); setTimeout(connectWS, 3000) }
+    ws.onerror = () => {}
+
+    ws.onmessage = ({ data }) => {
+      try {
+        const { event, data: payload } = JSON.parse(data)
+        onWSEvent(event, payload)
+      } catch {}
+    }
+  }
+
+  // Polling de QR: pregunta al servidor cada 2s hasta obtener el QR o confirmar conexión.
+  // El servidor responde inmediatamente (sin long-poll) para evitar timeouts en Vercel.
+  let qrPollActive = false
+  let qrPollTimer = null
+
+  async function startQRPolling() {
+    if (qrPollActive) return
+    qrPollActive = true
+    const poll = async () => {
+      if (!qrPollActive) return
+      try {
+        const res = await fetch('/api/qr', { cache: 'no-store' })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const { image, status } = await res.json()
+        if (!qrPollActive) return
+        if (status === 'connected') {
+          hideQRModal()
+          loadSessions()
+          qrPollActive = false
+          return
+        }
+        if (image) showQRModal(image)
+        qrPollTimer = setTimeout(poll, 2000)
+      } catch {
+        if (!qrPollActive) return
+        qrPollTimer = setTimeout(poll, 3000)
+      }
+    }
+    poll()
+  }
+
+  function stopQRPolling() {
+    qrPollActive = false
+    if (qrPollTimer) { clearTimeout(qrPollTimer); qrPollTimer = null }
+  }
+
+  function showQRTimeout() {
+    document.getElementById('qrImg').style.display = 'none'
+    document.getElementById('qrWaiting').style.display = 'none'
+    document.getElementById('qrError').style.display = 'flex'
+    document.getElementById('qrRetryBtn').style.display = 'block'
+    document.getElementById('qrSteps').style.display = 'none'
+    document.getElementById('qrNote').style.display = 'none'
+  }
+
+  function retryQRConnection() {
+    document.getElementById('qrError').style.display = 'none'
+    document.getElementById('qrRetryBtn').style.display = 'none'
+    document.getElementById('qrSteps').style.display = ''
+    document.getElementById('qrNote').style.display = ''
+    showQRModal(null)
+    startQRPolling()
+  }
+
+  function onWSEvent(event, data) {
+    if (event === 'qr') {
+      showQRModal(data.image)
+    }
+    if (event === 'whatsapp:connected') {
+      hideQRModal()
+      if (data.phone) state.botPhone = data.phone
+      stopQRPolling()
+    }
+    if (event === 'whatsapp:disconnected') {
+      showQRModal(null)
+      startQRPolling()
+    }
+    // Multi-session events
+    if (event === 'session:qr') {
+      if (data.id === 'default') showQRModal(data.image)
+      if (state.activeModalSessionId === data.id) {
+        const box = document.getElementById('smgmtQRBox')
+        if (box && data.image) box.innerHTML = `<img src="${data.image}" alt="QR" style="width:100%;height:100%;object-fit:contain">`
+      }
+      loadSessions()
+    }
+    if (event === 'session:connected') {
+      loadSessions()
+      toast(`WhatsApp vinculado: ${data.name || ''}${data.phone ? ' +' + data.phone : ''}`, 'success')
+      if (data.id === 'default') {
+        hideQRModal()
+        stopQRPolling()
+      }
+      if (state.activeModalSessionId === data.id) {
+        closeSessionModal()
+        if (sessionQRTimer) { clearInterval(sessionQRTimer); sessionQRTimer = null }
+      }
+    }
+    if (event === 'session:disconnected') {
+      loadSessions()
+      if (data.id === 'default') { showQRModal(null); startQRPolling() }
+    }
+    if (event === 'session:removed') {
+      loadSessions()
+    }
+    if (event === 'invoice:new') {
+      state.all.unshift(data.invoice)
+      if (data.stats) { state.stats = data.stats; renderStats(); renderAnalytics() }
+      applyFilters()
+      toast(`Nueva factura: ${data.invoice.vendor || 'Proveedor desconocido'} · ${fmtAmt(data.invoice.total)}`, 'success')
+      setTimeout(() => {
+        const row = document.querySelector(`tr[data-id="${data.invoice.id}"]`)
+        if (row) { row.classList.add('flash-new'); setTimeout(() => row.classList.remove('flash-new'), 2500) }
+      }, 60)
+    }
+    if (event === 'chat:wa') {
+      handleWaMsg(data)
+    }
+    if (event === 'invoice:updated') {
+      const i = state.all.findIndex(x => x.id === data.invoice.id)
+      if (i >= 0) state.all[i] = data.invoice
+      applyFilters()
+      if (state.selectedId === data.invoice.id) openPanel(data.invoice.id)
+      fetch('/api/stats').then(r => r.json()).then(s => { state.stats = s; renderStats(); renderAnalytics() })
+    }
+  }
+
+  // ────────────────────────────────────────────────────
+  //  Filters
+  // ────────────────────────────────────────────────────
+  function setStatus(s, btn) {
+    state.filterStatus = s
+    document.querySelectorAll('#statusTabs .tab').forEach(t => t.classList.remove('active'))
+    btn.classList.add('active')
+    applyFilters()
+  }
+
+  function applyFilters() {
+    state.filterSearch = document.getElementById('searchInput').value.toLowerCase()
+    state.filterCat = document.getElementById('catFilter').value
+
+    state.filtered = state.all.filter(inv => {
+      if (state.filterStatus && inv.status !== state.filterStatus) return false
+      if (state.filterCat && inv.category !== state.filterCat) return false
+      if (state.filterSearch) {
+        const hay = `${inv.vendor || ''} ${inv.invoice_number || ''} ${inv.category || ''}`.toLowerCase()
+        if (!hay.includes(state.filterSearch)) return false
+      }
+      return true
+    })
+
+    renderInvoices()
+  }
+
+  // ────────────────────────────────────────────────────
+  //  Render — Stats
+  // ────────────────────────────────────────────────────
+  function renderStats() {
+    const s = state.stats
+    const cm = s.currentMonth || {}
+    const pm = s.prevMonth || {}
+
+    const pct = (a, b) => {
+      if (!b || b === 0) return null
+      return Math.round(((a - b) / b) * 100)
+    }
+    const pctLabel = (n, unit) => {
+      if (n == null) return ''
+      const sign = n > 0 ? '+' : ''
+      return `${sign}${n}${unit} vs mes anterior`
+    }
+
+    document.getElementById('sStat0').textContent = cm.count ?? 0
+    const dp0 = pct(cm.count, pm.count)
+    const ch0 = document.getElementById('sChange0')
+    ch0.textContent = pctLabel(dp0, '%')
+    ch0.className = 'stat-change' + (dp0 > 0 ? ' up' : '')
+
+    document.getElementById('sStat1').textContent = state.currency ? fmtAmt(cm.total) : '—'
+    const dp1 = pct(cm.total, pm.total)
+    const ch1 = document.getElementById('sChange1')
+    ch1.textContent = state.currency ? pctLabel(dp1, '%') : 'Selecciona una divisa'
+    ch1.className = 'stat-change' + (dp1 > 0 ? ' up' : '')
+
+    document.getElementById('sStat2').textContent = state.currency ? fmtAmt(s.totalAccumulatedTax) : '—'
+    document.getElementById('sChange2').textContent = state.currency
+      ? `IVA/ITBIS acumulado · ${state.currency}`
+      : 'Selecciona una divisa para ver'
+
+    const pending = s.pendingReview ?? 0
+    const stat3 = document.getElementById('sStat3')
+    stat3.textContent = pending
+    stat3.className = 'stat-value' + (pending > 0 ? ' warning' : '')
+    document.getElementById('sChange3').textContent = pending > 0 ? 'Requieren revisión manual' : 'Todo al día'
+
+    document.getElementById('sStat4').textContent = state.currency ? fmtAmt(pm.total) : '—'
+    const ch4 = document.getElementById('sChange4')
+    ch4.textContent = `${pm.count ?? 0} factura${(pm.count ?? 0) !== 1 ? 's' : ''} · ${fmtMonthLabel(pm.label)}`
+    ch4.className = 'stat-change'
+  }
+
+  // ────────────────────────────────────────────────────
+  //  Render — Table
+  // ────────────────────────────────────────────────────
+  function renderInvoices() {
+    const tbody = document.getElementById('invoicesBody')
+    const empty = document.getElementById('emptyState')
+    const count = document.getElementById('invoiceCount')
+
+    count.textContent = `${state.filtered.length} factura${state.filtered.length !== 1 ? 's' : ''}`
+
+    if (!state.filtered.length) {
+      tbody.innerHTML = ''
+      empty.style.display = 'flex'
+      return
+    }
+    empty.style.display = 'none'
+
+    tbody.innerHTML = state.filtered.map(inv => {
+      const conf = inv.confidence ?? 0
+      const confCls = conf >= 0.9 ? 'conf-high' : conf >= 0.7 ? 'conf-mid' : 'conf-low'
+      const isSelected = inv.id === state.selectedId
+      return `<tr data-id="${inv.id}" onclick="openPanel('${inv.id}')" ${isSelected ? 'class="selected"' : ''}>
+        <td style="white-space:nowrap;color:var(--text-muted);font-size:12.5px">${fmtDate(inv.date || inv.created_at)}</td>
+        <td><div class="vendor-name" title="${esc(inv.vendor || '')}">${esc(inv.vendor || '—')}</div></td>
+        <td class="mono">${esc(inv.invoice_number || '—')}</td>
+        <td><span class="cat-tag">${esc(inv.category || 'Otros')}</span></td>
+        <td class="amount">${fmtInvAmt(inv.total, inv)}</td>
+        <td class="amount-muted">${fmtInvAmt(inv.tax_amount, inv)}</td>
+        <td><span class="badge badge-${inv.status}"><span class="badge-dot"></span>${statusLbl(inv.status)}</span></td>
+        <td><span class="conf-pill"><span class="conf-dot ${confCls}"></span>${Math.round(conf * 100)}%</span></td>
+        <td>
+          <div class="row-actions" onclick="event.stopPropagation()">
+            ${inv.status === 'pending' ? `
+              <button class="btn-action btn-approve" onclick="doApprove('${inv.id}', event)" title="Aprobar">✓</button>
+              <button class="btn-action btn-reject" onclick="doReject('${inv.id}', event)" title="Rechazar">✕</button>
+            ` : ''}
+            <button class="btn-action btn-view" onclick="openPanel('${inv.id}', event)" title="Ver detalle">→</button>
+          </div>
+        </td>
+      </tr>`
+    }).join('')
+  }
+
+  // ────────────────────────────────────────────────────
+  //  Render — Analytics
+  // ────────────────────────────────────────────────────
+  function renderAnalytics() {
+    const s = state.stats
+    const cats = s.byCategory || []
+    const vendors = s.topVendors || []
+
+    const maxAmt = Math.max(...cats.map(c => c.amount), 1)
+    document.getElementById('categoryChart').innerHTML = cats.slice(0, 7).map(c => `
+      <div class="bar-row">
+        <div class="bar-label" title="${esc(c.category)}">${esc(c.category || 'Otros')}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.round((c.amount/maxAmt)*100)}%"></div></div>
+        <div class="bar-value">${fmtAmt(c.amount)}</div>
+      </div>`).join('') || '<div style="color:var(--text-subtle);font-size:13px">Sin datos aún</div>'
+
+    const maxV = Math.max(...vendors.map(v => v.amount), 1)
+    document.getElementById('vendorList').innerHTML = vendors.slice(0, 5).map((v, i) => `
+      <div class="vendor-row">
+        <div class="vendor-rank">${i + 1}</div>
+        <div class="vendor-info">
+          <div class="vendor-info-name" title="${esc(v.vendor || '')}">${esc(v.vendor || 'Desconocido')}</div>
+          <div class="vendor-info-count">${v.count} factura${v.count !== 1 ? 's' : ''}</div>
+        </div>
+        <div class="vendor-amount">${fmtAmt(v.amount)}</div>
+      </div>`).join('') || '<div style="color:var(--text-subtle);font-size:13px">Sin datos aún</div>'
+  }
+
+  // ────────────────────────────────────────────────────
+  //  Detail Panel
+  // ────────────────────────────────────────────────────
+  function openPanel(id, event) {
+    if (event) event.stopPropagation()
+    state.selectedId = id
+    const inv = state.all.find(x => x.id === id)
+    if (!inv) return
+
+    document.querySelectorAll('tbody tr').forEach(r => r.classList.toggle('selected', r.dataset.id === id))
+
+    document.getElementById('panelInvoiceId').textContent = inv.invoice_number ? `Factura ${inv.invoice_number}` : `ID ${id.slice(0, 8)}...`
+
+    const conf = inv.confidence ?? 0
+    const hasFile = inv.original_filename
+
+    document.getElementById('panelBody').innerHTML = `
+      ${hasFile ? `<img class="panel-img" src="/uploads/${esc(inv.original_filename)}" alt="Factura" onerror="this.style.display='none'">` : ''}
+
+      <div class="panel-section-title">Resumen</div>
+      <div class="field-row"><div class="field-label">Total</div><div class="field-value amount">${fmtInvAmt(inv.total, inv)}</div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="field-row"><div class="field-label">Base imponible</div><div class="field-value">${fmtInvAmt(inv.subtotal, inv)}</div></div>
+        <div class="field-row"><div class="field-label">IVA/ITBIS (${inv.tax_rate ?? '?'}%)</div><div class="field-value">${fmtInvAmt(inv.tax_amount, inv)}</div></div>
+      </div>
+
+      <div class="panel-section-title">Datos</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="field-row"><div class="field-label">Proveedor</div><div class="field-value">${esc(inv.vendor || '—')}</div></div>
+        <div class="field-row"><div class="field-label">Fecha</div><div class="field-value">${fmtDate(inv.date)}</div></div>
+        <div class="field-row"><div class="field-label">CIF/NIF</div><div class="field-value">${esc(inv.vendor_cif || '—')}</div></div>
+        <div class="field-row"><div class="field-label">Categoría</div><div class="field-value"><span class="cat-tag">${esc(inv.category || 'Otros')}</span></div></div>
+        ${inv.payment_method ? `<div class="field-row"><div class="field-label">Pago</div><div class="field-value">${esc(inv.payment_method)}</div></div>` : ''}
+      </div>
+
+      <div class="panel-section-title">Notas (opcional)</div>
+      <textarea class="field-input" id="panelNotes" rows="2" placeholder="Añade una nota...">${esc(inv.notes || '')}</textarea>
+
+      <div class="panel-section-title">Extracción IA</div>
+      <div class="ai-chip">
+        <span class="conf-dot ${conf >= 0.9 ? 'conf-high' : conf >= 0.7 ? 'conf-mid' : 'conf-low'}"></span>
+        ${esc(inv.extracted_by || 'IA')} · ${Math.round(conf * 100)}% confianza
+      </div>
+      ${inv.needs_review ? '<div style="margin-top:10px;font-size:12px;color:#D97706">⚠ Confianza baja — revisa los datos manualmente</div>' : ''}
+    `
+
+    const actionsEl = document.getElementById('panelActions')
+    actionsEl.style.display = 'flex'
+    actionsEl.innerHTML = inv.status === 'pending'
+      ? `<button class="btn-reject-full" onclick="doReject('${inv.id}')">✕ Rechazar</button>
+         <button class="btn-save-full" onclick="saveNotes('${inv.id}')">Guardar</button>
+         <button class="btn-approve-full" onclick="doApprove('${inv.id}')">✓ Aprobar</button>`
+      : `<button class="btn-save-full" onclick="saveNotes('${inv.id}')">Guardar notas</button>`
+
+    document.getElementById('detailPanel').classList.add('open')
+  }
+
+  function closePanel() {
+    state.selectedId = null
+    document.getElementById('detailPanel').classList.remove('open')
+    document.querySelectorAll('tbody tr.selected').forEach(r => r.classList.remove('selected'))
+  }
+
+  // ────────────────────────────────────────────────────
+  //  Actions
+  // ────────────────────────────────────────────────────
+  async function doApprove(id, event) {
+    if (event) event.stopPropagation()
+    await patchInvoice(id, { status: 'approved' })
+    toast('Factura aprobada', 'success')
+  }
+
+  async function doReject(id, event) {
+    if (event) event.stopPropagation()
+    await patchInvoice(id, { status: 'rejected' })
+    toast('Factura rechazada', 'info')
+  }
+
+  async function saveNotes(id) {
+    const notes = document.getElementById('panelNotes')?.value || ''
+    await patchInvoice(id, { notes })
+    toast('Notas guardadas', 'success')
+  }
+
+  async function patchInvoice(id, body) {
+    const res = await fetch(`/api/invoices/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const updated = await res.json()
+    const i = state.all.findIndex(x => x.id === id)
+    if (i >= 0) state.all[i] = updated
+    applyFilters()
+    if (state.selectedId === id) openPanel(id)
+    fetch('/api/stats').then(r => r.json()).then(s => { state.stats = s; renderStats(); renderAnalytics() })
+  }
+
+  function toggleExportMenu(e) {
+    e.stopPropagation()
+    document.getElementById('exportDropdown').classList.toggle('open')
+  }
+  function closeExportMenu() {
+    document.getElementById('exportDropdown').classList.remove('open')
+  }
+  document.addEventListener('click', () => closeExportMenu())
+
+  async function exportExcel() {
+    try {
+      const cq = state.currency ? `?currency=${state.currency}` : ''
+      const res = await fetch(`/api/export/excel${cq}`)
+      if (!res.ok) { toast('No se pudo generar el Excel', 'error'); return }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `FacturaIA-${new Date().toISOString().slice(0, 10)}${state.currency ? '-' + state.currency : ''}.xlsx`
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 5000)
+    } catch (e) {
+      console.error('Excel export error:', e)
+      toast('Error generando Excel', 'error')
+    }
+  }
+
+  async function exportCSV() {
+    try {
+      const res = await fetch('/api/export?format=csv')
+      if (!res.ok) { toast('No se pudo exportar', 'error'); return }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `facturas-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 5000)
+    } catch (e) {
+      console.error('Export error:', e)
+      toast('No se pudo exportar', 'error')
+    }
+  }
+
+  // ────────────────────────────────────────────────────
+  //  QR Modal
+  // ────────────────────────────────────────────────────
+  function showQRModal(image) {
+    const modal = document.getElementById('qrModal')
+    const img = document.getElementById('qrImg')
+    const waiting = document.getElementById('qrWaiting')
+    document.getElementById('qrError').style.display = 'none'
+    document.getElementById('qrRetryBtn').style.display = 'none'
+    document.getElementById('qrSteps').style.display = ''
+    document.getElementById('qrNote').style.display = ''
+    if (image) {
+      img.src = image
+      img.style.display = 'block'
+      waiting.style.display = 'none'
+    } else {
+      img.style.display = 'none'
+      waiting.style.display = 'flex'
+    }
+    modal.classList.remove('hidden')
+  }
+
+  function hideQRModal() {
+    document.getElementById('qrModal').classList.add('hidden')
+  }
+
+  // ────────────────────────────────────────────────────
+  //  Status indicators
+  // ────────────────────────────────────────────────────
+  function setWA(status, phone) {
+    const defaultSess = state.sessions.find(s => s.id === 'default')
+    if (defaultSess) {
+      defaultSess.status = status
+      if (phone) defaultSess.phone = phone
+      renderSessions()
+    }
+  }
+
+  // ────────────────────────────────────────────────────
+  //  Sessions UI
+  // ────────────────────────────────────────────────────
+  async function loadSessions() {
+    try {
+      const { sessions } = await fetch('/api/sessions').then(r => r.json())
+      state.sessions = sessions || []
+      renderSessions()
+    } catch {}
+  }
+
+  function renderSessions() {
+    const area = document.getElementById('sessionsArea')
+    if (!area) return
+    if (!state.sessions.length) {
+      area.innerHTML = `<button class="session-chip disconnected" onclick="openAddSessionModal()"><div class="wa-dot disconnected"></div><span>Sin WhatsApp</span></button>`
+      return
+    }
+    area.innerHTML = state.sessions.map(s => {
+      const cls = s.status === 'connected' ? 'connected' : s.status === 'qr' ? 'qr' : 'disconnected'
+      const label = (s.status === 'connected' && s.phone) ? `+${esc(s.phone)}` : esc(s.name || s.id)
+      return `<button class="session-chip ${cls}" onclick="openSessionModal('${esc(s.id)}')" title="${esc(s.name || s.id)}">
+        <div class="wa-dot ${cls}"></div>
+        <span>${label}</span>
+      </button>`
+    }).join('')
+  }
+
+  function openSessionModal(id) {
+    const session = state.sessions.find(s => s.id === id)
+    if (!session) return
+    state.activeModalSessionId = id
+    const title = document.getElementById('smgmtTitle')
+    const body = document.getElementById('smgmtBody')
+    title.textContent = session.name || 'Sesión'
+
+    if (session.status === 'connected') {
+      body.innerHTML = `
+        <div style="text-align:center">
+          <div class="smgmt-status-badge smgmt-connected"><div class="wa-dot connected"></div> Conectado</div>
+          ${session.phone ? `
+          <div class="smgmt-phone">+${esc(session.phone)}</div>
+          <a href="https://wa.me/${esc(session.phone)}" target="_blank" class="smgmt-btn"><span>📱</span> Abrir chat en WhatsApp</a>
+          <button class="smgmt-btn-ghost" onclick="copySessionPhone('${esc(session.phone)}')">Copiar número</button>
+          ` : ''}
+          ${id !== 'default' ? `<div style="margin-top:8px"><button class="smgmt-btn-danger" onclick="removeSession('${esc(id)}')">Desvincular esta cuenta</button></div>` : ''}
+        </div>`
+    } else {
+      const statusCls = session.status === 'qr' ? 'smgmt-qr' : 'smgmt-disconnected'
+      const statusLabel = session.status === 'qr' ? '📱 Esperando escaneo...' : '🔴 Desconectado — reconectando...'
+      body.innerHTML = `
+        <div style="text-align:center">
+          <div class="smgmt-status-badge ${statusCls}">${statusLabel}</div>
+          <div class="smgmt-qr-box" id="smgmtQRBox">
+            <div class="qr-waiting"><div class="qr-spinner"></div><span style="font-size:12px">Generando QR...</span></div>
+          </div>
+          <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px">Escanea con WhatsApp → Dispositivos vinculados</div>
+          ${id !== 'default' ? `<button class="smgmt-btn-danger" onclick="removeSession('${esc(id)}')">Cancelar y eliminar</button>` : ''}
+        </div>`
+      fetchSessionQR(id)
+    }
+    document.getElementById('smgmtOverlay').classList.add('open')
+  }
+
+  async function fetchSessionQR(id) {
+    try {
+      const { status, image } = await fetch(`/api/sessions/${id}/qr`).then(r => r.json())
+      if (state.activeModalSessionId !== id) return
+      const box = document.getElementById('smgmtQRBox')
+      if (!box) return
+      if (status === 'connected') { closeSessionModal(); loadSessions(); return }
+      if (image) box.innerHTML = `<img src="${image}" alt="QR" style="width:100%;height:100%;object-fit:contain">`
+    } catch {}
+  }
+
+  function closeSessionModal() {
+    document.getElementById('smgmtOverlay').classList.remove('open')
+    state.activeModalSessionId = null
+    if (sessionQRTimer) { clearInterval(sessionQRTimer); sessionQRTimer = null }
+  }
+
+  async function removeSession(id) {
+    if (!confirm('¿Desvincular esta cuenta de WhatsApp?')) return
+    try {
+      await fetch(`/api/sessions/${id}`, { method: 'DELETE' })
+      closeSessionModal()
+      loadSessions()
+      toast('Cuenta desvinculada', 'info')
+    } catch { toast('Error al desvincular', 'warning') }
+  }
+
+  function copySessionPhone(phone) {
+    navigator.clipboard.writeText(`+${phone}`).then(() => toast('Número copiado', 'success'))
+  }
+
+  function openAddSessionModal() {
+    state.activeModalSessionId = null
+    document.getElementById('smgmtTitle').textContent = 'Nueva cuenta WhatsApp'
+    document.getElementById('smgmtBody').innerHTML = `
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:40px;margin-bottom:10px">📱</div>
+        <div style="font-size:13px;color:var(--text-muted)">Dale un nombre a esta cuenta para identificarla en el panel.</div>
+      </div>
+      <input type="text" class="smgmt-input" id="newSessionName" placeholder="Ej: Clínica principal, María..." maxlength="50" autofocus>
+      <button class="smgmt-btn" onclick="createSession()">Generar QR para vincular</button>
+      <button class="smgmt-btn-ghost" onclick="closeSessionModal()">Cancelar</button>`
+    const input = document.getElementById('smgmtBody').querySelector('#newSessionName')
+    setTimeout(() => input?.focus(), 80)
+    input?.addEventListener('keydown', e => { if (e.key === 'Enter') createSession() })
+    document.getElementById('smgmtOverlay').classList.add('open')
+  }
+
+  let sessionQRTimer = null
+
+  async function createSession() {
+    const name = document.getElementById('newSessionName')?.value?.trim()
+    if (!name) { document.getElementById('newSessionName')?.focus(); return }
+
+    document.getElementById('smgmtBody').innerHTML = `
+      <div style="text-align:center;padding:24px 0">
+        <div class="qr-spinner" style="margin:0 auto 14px;width:32px;height:32px"></div>
+        <div style="font-size:13px;color:var(--text-muted)">Creando sesión...</div>
+      </div>`
+
+    try {
+      const res = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      const session = await res.json()
+      if (!res.ok) {
+        document.getElementById('smgmtBody').innerHTML = `<div style="text-align:center;color:#DC2626;padding:20px">${esc(session.error || 'Error al crear sesión')}</div>`
+        return
+      }
+      state.activeModalSessionId = session.id
+      document.getElementById('smgmtTitle').textContent = name
+      document.getElementById('smgmtBody').innerHTML = `
+        <div style="text-align:center">
+          <div class="smgmt-status-badge smgmt-qr">Esperando escaneo...</div>
+          <div class="smgmt-qr-box" id="smgmtQRBox">
+            <div class="qr-waiting"><div class="qr-spinner"></div><span style="font-size:12px">Generando QR...</span></div>
+          </div>
+          <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px">
+            WhatsApp → ⋮ → Dispositivos vinculados → Vincular un dispositivo
+          </div>
+          <button class="smgmt-btn-danger" onclick="removeSession('${esc(session.id)}')">Cancelar</button>
+        </div>`
+      loadSessions()
+      pollSessionQR(session.id)
+    } catch {
+      document.getElementById('smgmtBody').innerHTML = `<div style="text-align:center;color:#DC2626;padding:20px">Error de conexión</div>`
+    }
+  }
+
+  async function pollSessionQR(id) {
+    if (sessionQRTimer) clearInterval(sessionQRTimer)
+    sessionQRTimer = setInterval(async () => {
+      if (state.activeModalSessionId !== id) { clearInterval(sessionQRTimer); sessionQRTimer = null; return }
+      try {
+        const { status, image } = await fetch(`/api/sessions/${id}/qr`).then(r => r.json())
+        const box = document.getElementById('smgmtQRBox')
+        if (!box) { clearInterval(sessionQRTimer); sessionQRTimer = null; return }
+        if (status === 'connected') {
+          clearInterval(sessionQRTimer); sessionQRTimer = null
+          closeSessionModal(); loadSessions()
+          toast('WhatsApp vinculado correctamente', 'success')
+          return
+        }
+        if (image) box.innerHTML = `<img src="${image}" alt="QR" style="width:100%;height:100%;object-fit:contain">`
+      } catch {}
+    }, 3000)
+  }
+
+  function setWsStatus(active) {
+    document.getElementById('wsLed').className = `ws-led${active ? ' active' : ''}`
+    document.getElementById('wsLabel').textContent = active ? 'En tiempo real' : 'Reconectando...'
+  }
+
+  // ────────────────────────────────────────────────────
+  //  Toast
+  // ────────────────────────────────────────────────────
+  function toast(msg, type = 'info') {
+    const c = document.getElementById('toasts')
+    const el = document.createElement('div')
+    const icon = { success: '✓', info: 'ℹ', warning: '⚠' }[type] || 'ℹ'
+    el.className = `toast toast-${type}`
+    el.innerHTML = `<span class="toast-icon">${icon}</span><span>${esc(msg)}</span>`
+    c.appendChild(el)
+    requestAnimationFrame(() => { requestAnimationFrame(() => el.classList.add('in')) })
+    setTimeout(() => {
+      el.classList.remove('in')
+      setTimeout(() => el.remove(), 350)
+    }, 4000)
+  }
+
+  // ────────────────────────────────────────────────────
+  //  Utilities
+  // ────────────────────────────────────────────────────
+  function fmt(n) {
+    if (n == null) return '—'
+    return Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  }
+
+  function fmtDate(str) {
+    if (!str) return '—'
+    try {
+      const d = new Date(str.includes('T') ? str : str + 'T00:00:00')
+      if (isNaN(d)) return str.slice(0, 10)
+      return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    } catch { return str.slice(0, 10) }
+  }
+
+  function statusLbl(s) {
+    return { pending: 'Pendiente', approved: 'Aprobada', rejected: 'Rechazada' }[s] || s
+  }
+
+  function esc(str) {
+    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+  }
+
+  // ────────────────────────────────────────────────────
+  //  Chat Panel — control
+  // ────────────────────────────────────────────────────
+  let chatMsgId = 0
+  let waUnread = 0
+  let activeChatTab = 'web'
+
+  function toggleChat() {
+    const panel = document.getElementById('chatPanel')
+    panel.classList.toggle('open')
+    if (panel.classList.contains('open') && activeChatTab === 'wa') resetWaBadge()
+  }
+
+  function switchChatTab(tab) {
+    activeChatTab = tab
+    document.getElementById('tabWeb').style.display = tab === 'web' ? 'flex' : 'none'
+    document.getElementById('tabWa').style.display  = tab === 'wa'  ? 'flex' : 'none'
+    document.getElementById('tabBtnWeb').classList.toggle('active', tab === 'web')
+    document.getElementById('tabBtnWa').classList.toggle('active', tab === 'wa')
+    if (tab === 'wa') resetWaBadge()
+  }
+
+  function resetWaBadge() {
+    waUnread = 0
+    document.getElementById('waBadge').style.display = 'none'
+    document.getElementById('chatBadge').style.display = 'none'
+  }
+
+  function incWaBadge() {
+    if (activeChatTab === 'wa' && document.getElementById('chatPanel').classList.contains('open')) return
+    waUnread++
+    const b1 = document.getElementById('waBadge')
+    const b2 = document.getElementById('chatBadge')
+    b1.textContent = b2.textContent = waUnread
+    b1.style.display = b2.style.display = 'inline-flex'
+  }
+
+  // ────────────────────────────────────────────────────
+  //  WhatsApp chat tab
+  // ────────────────────────────────────────────────────
+  function handleWaMsg(data) {
+    if (data.role === 'user') {
+      if (data.type === 'file:pending') {
+        waAddMsg('user', data.phone, data.name,
+          `<span class="wa-msg-pending">📎 Enviando archivo…</span>`, data.ts)
+      } else if (data.type === 'file') {
+        const isImg = data.mimeType && data.mimeType.startsWith('image/')
+        const preview = isImg
+          ? `<img class="chat-file-img" src="/uploads/${esc(data.filename)}" alt="factura" style="max-width:180px;border-radius:8px;margin-bottom:4px;display:block">`
+          : `<div class="chat-file-pdf" style="margin-bottom:4px">📄</div>`
+        waAddMsg('user', data.phone, data.name, preview + `<div class="chat-file-name">${esc(data.filename)}</div>`, data.ts)
+      } else if (data.type === 'text') {
+        waAddMsg('user', data.phone, data.name, esc(data.text || ''), data.ts)
+      } else {
+        waAddMsg('user', data.phone, data.name, `<span class="wa-msg-pending">📎 Archivo no soportado</span>`, data.ts)
+      }
+    } else {
+      const html = esc(data.text || '')
+        .replace(/\*([^*]+)\*/g, '<strong>$1</strong>')
+        .replace(/_([^_]+)_/g, '<em>$1</em>')
+        .replace(/\n/g, '<br>')
+      waAddMsg('bot', null, null, html, data.ts)
+    }
+    incWaBadge()
+  }
+
+  function waAddMsg(role, phone, name, html, ts) {
+    const id = `cm${++chatMsgId}`
+    const timeStr = ts ? new Date(ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : ''
+    const senderLine = role === 'user' && (name || phone)
+      ? `<div class="wa-msg-phone">${esc(name || phone)}</div>` : ''
+    const el = document.createElement('div')
+    el.className = `chat-msg chat-msg-${role}`
+    el.id = id
+    el.innerHTML = `<div class="chat-bubble">${senderLine}${html}<div style="font-size:10.5px;opacity:0.45;text-align:right;margin-top:4px">${timeStr}</div></div>`
+    const box = document.getElementById('waMessages')
+    box.appendChild(el)
+    box.scrollTop = box.scrollHeight
+    return id
+  }
+
+  function waDrop(e) {
+    e.preventDefault()
+    document.getElementById('waDropzone').classList.remove('drag-over')
+    const file = e.dataTransfer.files[0]
+    if (file) uploadWaFile(file)
+  }
+  function handleWaFile(e) {
+    const file = e.target.files[0]
+    if (file) uploadWaFile(file)
+    e.target.value = ''
+  }
+  async function uploadWaFile(file) {
+    const allowed = ['image/jpeg', 'image/png', 'application/pdf']
+    if (!allowed.includes(file.type)) {
+      waAddMsg('bot', null, null, '⚠️ Formato no compatible. Usa JPG, PNG o PDF.', Date.now())
+      return
+    }
+    document.getElementById('chatPanel').classList.add('open')
+    switchChatTab('wa')
+    waAddMsg('user', 'web-panel', 'Tú', chatFileHTML(file), Date.now())
+    const thinkId = waAddMsg('bot', null, null, '<div class="chat-thinking"><span></span><span></span><span></span></div>', Date.now())
+    try {
+      const fd = new FormData()
+      fd.append('invoice', file)
+      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      const data = await res.json()
+      document.getElementById(thinkId)?.remove()
+      if (!res.ok || data.error) { waAddMsg('bot', null, null, `❌ ${esc(data.error || 'Error procesando la factura')}`, Date.now()); return }
+      if (data.isDuplicate) { waAddMsg('bot', null, null, '⚠️ Factura duplicada — ya fue registrada anteriormente.', Date.now()); return }
+      waAddMsg('bot', null, null, chatResultHTML(data), Date.now())
+      fetch(`/api/invoices?limit=200${state.currency ? '&currency=' + state.currency : ''}`)
+        .then(r => r.json()).then(d => { state.all = d.invoices || []; applyFilters() })
+      fetch(`/api/stats${state.currency ? '?currency=' + state.currency : ''}`)
+        .then(r => r.json()).then(s => { state.stats = s; renderStats(); renderAnalytics() })
+    } catch (err) {
+      document.getElementById(thinkId)?.remove()
+      waAddMsg('bot', null, null, `❌ Error: ${esc(err.message)}`, Date.now())
+    }
+  }
+
+  function chatDragOver(e) {
+    e.preventDefault()
+    document.getElementById('chatDropzone').classList.add('drag-over')
+  }
+  function chatDragLeave() {
+    document.getElementById('chatDropzone').classList.remove('drag-over')
+  }
+  function chatDrop(e) {
+    e.preventDefault()
+    chatDragLeave()
+    const file = e.dataTransfer.files[0]
+    if (file) uploadInvoiceFile(file)
+  }
+  function handleChatFile(e) {
+    const file = e.target.files[0]
+    if (file) uploadInvoiceFile(file)
+    e.target.value = ''
+  }
+
+  async function uploadInvoiceFile(file) {
+    const allowed = ['image/jpeg', 'image/png', 'application/pdf']
+    if (!allowed.includes(file.type)) {
+      chatMsg('bot', '⚠️ Formato no compatible. Usa JPG, PNG o PDF.')
+      return
+    }
+
+    document.getElementById('chatPanel').classList.add('open')
+    chatMsg('user', chatFileHTML(file))
+    const thinkId = chatMsg('bot', '<div class="chat-thinking"><span></span><span></span><span></span></div>')
+
+    try {
+      const fd = new FormData()
+      fd.append('invoice', file)
+      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      const data = await res.json()
+      removeChatMsg(thinkId)
+
+      if (!res.ok || data.error) {
+        chatMsg('bot', `❌ ${esc(data.error || 'Error procesando la factura')}`)
+        return
+      }
+      if (data.isDuplicate) {
+        chatMsg('bot', `⚠️ Factura duplicada — ya fue registrada anteriormente.`)
+        return
+      }
+      chatMsg('bot', chatResultHTML(data))
+      // Refresca la tabla sin perder el filtro de divisa
+      fetch(`/api/invoices?limit=200${state.currency ? '&currency=' + state.currency : ''}`)
+        .then(r => r.json()).then(d => { state.all = d.invoices || []; applyFilters() })
+      fetch(`/api/stats${state.currency ? '?currency=' + state.currency : ''}`)
+        .then(r => r.json()).then(s => { state.stats = s; renderStats(); renderAnalytics() })
+    } catch (err) {
+      removeChatMsg(thinkId)
+      chatMsg('bot', `❌ Error de conexión: ${esc(err.message)}`)
+    }
+  }
+
+  function chatFileHTML(file) {
+    const isImg = file.type.startsWith('image/')
+    const sizeKB = (file.size / 1024).toFixed(0)
+    const preview = isImg
+      ? `<img class="chat-file-img" src="${URL.createObjectURL(file)}" alt="">`
+      : `<div class="chat-file-pdf">📄</div>`
+    return `<div class="chat-file-preview">${preview}<div class="chat-file-name">${esc(file.name)}</div><div class="chat-file-size">${sizeKB} KB</div></div>`
+  }
+
+  function chatResultHTML(data) {
+    const inv = data.invoice || {}
+    const conf = Math.round((data.confidence || 0) * 100)
+    const icon = conf >= 90 ? '✅' : conf >= 70 ? '⚠️' : '🔴'
+    return [
+      `${icon} <strong>Registrada · ${conf}% confianza</strong>`,
+      inv.vendor   ? `🏢 ${esc(inv.vendor)}` : null,
+      inv.date     ? `📅 ${fmtDate(inv.date)}` : null,
+      inv.total != null ? `💰 ${fmtInvAmt(inv.total, inv)}` : null,
+      inv.tax_amount != null ? `📊 ITBIS/IVA: ${fmtInvAmt(inv.tax_amount, inv)}` : null,
+      inv.category ? `🏷️ ${esc(inv.category)}` : null,
+      data.needsReview ? '<span style="color:#D97706">⚠️ Confianza baja — revisa en el panel.</span>' : null,
+    ].filter(Boolean).join('<br>')
+  }
+
+  function chatMsg(role, html) {
+    const id = `cm${++chatMsgId}`
+    const el = document.createElement('div')
+    el.className = `chat-msg chat-msg-${role}`
+    el.id = id
+    el.innerHTML = `<div class="chat-bubble">${html}</div>`
+    const box = document.getElementById('chatMessages')
+    box.appendChild(el)
+    box.scrollTop = box.scrollHeight
+    return id
+  }
+
+  function removeChatMsg(id) {
+    document.getElementById(id)?.remove()
+  }
+  </script>
+</body>
+</html>

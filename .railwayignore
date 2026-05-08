@@ -1,0 +1,6 @@
+auth_info_baileys/
+uploads/
+facturas.db
+.env
+*.log
+.DS_Store

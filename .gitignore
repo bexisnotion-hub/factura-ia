@@ -1,0 +1,11 @@
+node_modules/
+auth_info_baileys/
+uploads/
+facturas.db
+.env
+*.log
+.DS_Store
+
+.vercel
+auth_sessions/
+*.db

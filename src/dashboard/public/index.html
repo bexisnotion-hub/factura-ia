@@ -802,9 +802,60 @@
       font-variant-numeric: tabular-nums; margin-bottom: 16px; text-align: center;
     }
     .smgmt-sessions-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+
+    /* ── Login Overlay ───────────────────────────────── */
+    .login-overlay {
+      position: fixed; inset: 0; z-index: 600;
+      background: rgba(0,0,0,0.82); backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .login-overlay.hidden { display: none; }
+    .login-card {
+      background: var(--surface); border-radius: 20px;
+      padding: 44px 40px 40px; width: 380px; text-align: center;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.28);
+    }
+    .login-logo { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 6px; }
+    .login-logo span { color: var(--wa); }
+    .login-title { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+    .login-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; line-height: 1.5; }
+    .login-field { display: flex; gap: 8px; margin-bottom: 10px; }
+    .login-input {
+      flex: 1; padding: 12px 16px;
+      border: 1px solid var(--border); border-radius: var(--radius);
+      font-family: inherit; font-size: 14px; color: var(--text);
+      background: var(--surface-2); outline: none; transition: border-color 0.2s;
+    }
+    .login-input:focus { border-color: var(--accent); }
+    .login-btn {
+      padding: 12px 20px; background: var(--accent); color: var(--accent-fg);
+      border-radius: var(--radius); font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: opacity 0.15s; white-space: nowrap;
+    }
+    .login-btn:hover { opacity: 0.85; }
+    .login-error {
+      font-size: 12.5px; color: #DC2626; margin-top: 6px;
+      min-height: 18px; text-align: left;
+    }
   </style>
 </head>
 <body>
+
+  <!-- ── Login Overlay ─────────────────────────────── -->
+  <div id="loginOverlay" class="login-overlay hidden">
+    <div class="login-card">
+      <div class="login-logo">Factura<span>IA</span></div>
+      <div class="login-title">Acceso al Panel</div>
+      <div class="login-sub">Introduce el token de acceso para continuar.</div>
+      <div class="login-field">
+        <input type="password" id="loginTokenInput" class="login-input"
+          placeholder="Token de acceso..."
+          onkeydown="if(event.key==='Enter')submitLogin()">
+        <button class="login-btn" onclick="submitLogin()">Entrar</button>
+      </div>
+      <div id="loginError" class="login-error"></div>
+    </div>
+  </div>
 
   <!-- ── QR Modal ──────────────────────────────────── -->
   <div id="qrModal" class="qr-overlay">
@@ -1103,15 +1154,33 @@
   //  Auth (token Bearer guardado en sessionStorage)
   // ────────────────────────────────────────────────────
   function getAuthToken() {
-    let t = sessionStorage.getItem('factura_ia_token') || ''
-    if (!t) {
-      t = (window.prompt('Introduce el token de acceso al panel:') || '').trim()
-      if (t) sessionStorage.setItem('factura_ia_token', t)
-    }
-    return t
+    return sessionStorage.getItem('factura_ia_token') || ''
   }
   function clearAuthToken() {
     sessionStorage.removeItem('factura_ia_token')
+  }
+  function showLoginForm(errorMsg) {
+    const overlay = document.getElementById('loginOverlay')
+    overlay.classList.remove('hidden')
+    const errEl = document.getElementById('loginError')
+    if (errorMsg) { errEl.textContent = errorMsg; errEl.style.display = 'block' }
+    else { errEl.textContent = ''; errEl.style.display = 'none' }
+    const inp = document.getElementById('loginTokenInput')
+    inp.value = ''
+    setTimeout(() => inp.focus(), 50)
+  }
+  function submitLogin() {
+    const inp = document.getElementById('loginTokenInput')
+    const token = (inp.value || '').trim()
+    const errEl = document.getElementById('loginError')
+    if (!token) { errEl.textContent = 'Introduce el token de acceso'; errEl.style.display = 'block'; return }
+    sessionStorage.setItem('factura_ia_token', token)
+    document.getElementById('loginOverlay').classList.add('hidden')
+    loadData().then(() => {
+      connectWS()
+      startQRPolling()
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel() })
+    })
   }
   // Wrapper de fetch que inyecta el header Authorization y maneja 401.
   const _origFetch = window.fetch.bind(window)
@@ -1125,7 +1194,7 @@
       const res = await _origFetch(input, init)
       if (res.status === 401) {
         clearAuthToken()
-        alert('Token no válido o expirado. Recarga e introduce uno correcto.')
+        showLoginForm('Token no válido o expirado')
       }
       return res
     }
@@ -1154,6 +1223,10 @@
   //  Init
   // ────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', async () => {
+    if (!getAuthToken()) {
+      showLoginForm()
+      return
+    }
     await loadData()
     connectWS()
     startQRPolling()
